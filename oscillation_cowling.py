@@ -111,30 +111,28 @@ def f_phi(x, y, eos):
     p=np.exp(-x)
     p_dimentionful=p*eos.density_s
     eps=eos.eosDensity(p_dimentionful)/eos.density_s
-    baryondensity=eos.eosBaryonDensity(p_dimentionful)/eos.baryon_density_s
-    dphidx=p/(eps+p)
-    if(y[1]==0):
-        den=dphidx/(eps/3.0+p)
-        return np.array([0,0.5/pi*den,dphidx,0])
-    else:
-        r=y[1]**0.5
-        r4=y[1]**2
-        den=dphidx/(y[0]+4*pi*y[1]*r*p)
-        rel=1-2*y[0]/r
-        return np.array([4*pi*eps*r4*rel*den,2*y[1]*r*rel*den,dphidx,4*pi*baryondensity*r4*np.sqrt(rel)*den])
+    beta,r2,phi=y
+    exp_lam=1/(1-2*beta)
+    beta_over_r2=np.where(r2==0,4*pi*eps/3,beta/np.where(r2==0,np.infty,r2))
+    dphidr_over_r=exp_lam*(beta_over_r2+4*pi*p)
+    dpdr_over_r=-(eps+p)*dphidr_over_r
+    dbetadr_over_r=4*pi*eps-beta_over_r2
+    dr2dr_over_r=2
+    drdx_time_r=-p/(dpdr_over_r)
+    dydr_over_r=np.array([dbetadr_over_r,dr2dr_over_r,dphidr_over_r])
+    return dydr_over_r*drdx_time_r
 
 def MassRadiusPhi_profile(pressure_center,Preset_Pressure_final,Preset_rtol,N,eos):
     x0 = -np.log(pressure_center/eos.density_s)
     xf = x0-np.log(Preset_Pressure_final)
     xf_array = np.linspace(x0,xf,N)
-    y_array = lsoda_ode_array(f_phi,Preset_rtol,[0.,0.,0.,0.],x0,xf_array,eos)
+    y_array = lsoda_ode_array(f_phi,Preset_rtol,[0.,0.,0.],x0,xf_array,eos)
     # runtime warning due to zeros at star center
-    M_array=y_array[:,0]*eos.unit_mass/M_sun.value
+    beta_array=y_array[:,0]
+    M_array=y_array[:,0]*y_array[:,1]**0.5*eos.unit_mass/M_sun.value
     r_array=y_array[:,1]**0.5*eos.unit_radius
-    beta_array=np.concatenate(([0],y_array[1:,0]/(r_array[1:])*eos.unit_radius))
     Phi_array=(y_array[:,2]-y_array[-1,2])+0.5*np.log(1-2*beta_array[-1])
-    a_array=y_array[:,3]*eos.unit_N#/y_array[-1,3]
-    return  [y_array,xf_array,M_array,r_array,beta_array,Phi_array,a_array]
+    return  [y_array,xf_array,M_array,r_array,beta_array,Phi_array]
 
 
 #4.Perturbation ODE block
